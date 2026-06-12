@@ -94,6 +94,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 
 .check-row { display: flex; gap: 7px; align-items: center; margin: 6px 0; font-size: 13px; }
 
+.link-section { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 8px; }
+.link-head { display: flex; align-items: center; gap: 4px; }
+.link-head .link-title {
+  flex: 1;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+button.mini { padding: 2px 7px; font-size: 12px; border-radius: 5px; }
+
 #object-list { list-style: none; margin: 0; padding: 0; }
 #object-list li {
   display: flex;

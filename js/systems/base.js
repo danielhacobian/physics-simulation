@@ -20,7 +20,7 @@ export class PhysicsObject {
     this.showTrail = true;
     this.showVectors = false;
     this.dragging = false;
-    this.trail = [];
+    this.trails = new Map();  // mass index -> recent positions
     this.history = [];        // [time, coordinate] samples for the graph
     this.lastPeriod = null;
     this._prevCoord = null;
@@ -58,9 +58,13 @@ export class PhysicsObject {
 
     if (++this._tick % 4 === 0) { // sample trail/graph at 60 Hz, not every physics step
       if (this.showTrail) {
-        const p = this.massPositions()[this.tracedMass()];
-        this.trail.push({ x: p.x, y: p.y });
-        if (this.trail.length > TRAIL_MAX) this.trail.shift();
+        const ps = this.massPositions();
+        for (const mi of this.tracedMasses()) {
+          let arr = this.trails.get(mi);
+          if (!arr) this.trails.set(mi, (arr = []));
+          arr.push({ x: ps[mi].x, y: ps[mi].y });
+          if (arr.length > TRAIL_MAX) arr.shift();
+        }
       }
       this.history.push([t, c]);
       while (this.history.length && t - this.history[0][0] > HISTORY_SECONDS) {
@@ -72,7 +76,7 @@ export class PhysicsObject {
   reset() {
     this.state = [...this.initialState];
     this.dragging = false;
-    this.trail = [];
+    this.trails = new Map();
     this.history = [];
     this.lastPeriod = null;
     this._prevCoord = null;
@@ -82,6 +86,7 @@ export class PhysicsObject {
     this._tick = 0;
   }
 
-  // Which mass leaves the trail: the last (lowest) one by default.
-  tracedMass() { return this.massPositions().length - 1; }
+  // Which masses leave trails: the last one by default; assemblies
+  // override this to trace every leaf.
+  tracedMasses() { return [this.massPositions().length - 1]; }
 }

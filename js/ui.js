@@ -1,9 +1,12 @@
+import { RodLink, SpringLink } from './systems/links.js';
+
 const $ = id => document.getElementById(id);
 
 const fmtDecimals = step => (step >= 1 ? 0 : step >= 0.1 ? 1 : 2);
 
-// Sidebar + transport bar. The inspector builds its sliders generically from
-// the selected object's static paramDefs, so new system types need no UI code.
+// Sidebar + transport bar. The inspector renders one section per link of the
+// selected assembly (indented by tree depth), building sliders generically
+// from each link type's paramDefs, with buttons to grow or prune the tree.
 export class UI {
   constructor(scene, engine, renderer, types) {
     this.scene = scene;
@@ -31,7 +34,7 @@ export class UI {
       const o = scene.selected;
       if (!o) return;
       o.showTrail = e.target.checked;
-      if (!o.showTrail) o.trail = [];
+      if (!o.showTrail) o.trails.clear();
     };
     $('insp-vectors').onchange = e => {
       if (scene.selected) scene.selected.showVectors = e.target.checked;
@@ -78,6 +81,42 @@ export class UI {
     }
   }
 
+  sliderRow(target, def) {
+    const row = document.createElement('label');
+    row.className = 'slider-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'lbl';
+    const name = document.createElement('span');
+    name.textContent = def.label;
+    const val = document.createElement('span');
+    val.className = 'val';
+    const fmt = v => `${(+v).toFixed(fmtDecimals(def.step))} ${def.unit}`;
+    val.textContent = fmt(target[def.key]);
+    lbl.append(name, val);
+
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = def.min;
+    input.max = def.max;
+    input.step = def.step;
+    input.value = target[def.key];
+    input.oninput = () => {
+      target[def.key] = +input.value; // applied live, mid-swing
+      val.textContent = fmt(input.value);
+    };
+    row.append(lbl, input);
+    return row;
+  }
+
+  smallButton(text, title, onclick) {
+    const b = document.createElement('button');
+    b.className = 'mini';
+    b.textContent = text;
+    b.title = title;
+    b.onclick = onclick;
+    return b;
+  }
+
   buildInspector() {
     const o = this.scene.selected;
     $('inspector').hidden = !o;
@@ -89,31 +128,36 @@ export class UI {
 
     const box = $('insp-params');
     box.innerHTML = '';
-    for (const def of o.constructor.paramDefs) {
-      const row = document.createElement('label');
-      row.className = 'slider-row';
-      const lbl = document.createElement('span');
-      lbl.className = 'lbl';
-      const name = document.createElement('span');
-      name.textContent = def.label;
-      const val = document.createElement('span');
-      val.className = 'val';
-      const fmt = v => `${(+v).toFixed(fmtDecimals(def.step))} ${def.unit}`;
-      val.textContent = fmt(o[def.key]);
-      lbl.append(name, val);
+    for (const { i, depth } of o.linkTreeOrder()) {
+      const link = o.links[i];
+      const sec = document.createElement('div');
+      sec.className = 'link-section';
+      sec.style.marginLeft = `${depth * 12}px`;
 
-      const input = document.createElement('input');
-      input.type = 'range';
-      input.min = def.min;
-      input.max = def.max;
-      input.step = def.step;
-      input.value = o[def.key];
-      input.oninput = () => {
-        o[def.key] = +input.value; // applied live, mid-swing
-        val.textContent = fmt(input.value);
-      };
-      row.append(lbl, input);
-      box.appendChild(row);
+      const head = document.createElement('div');
+      head.className = 'link-head';
+      const title = document.createElement('span');
+      title.className = 'link-title';
+      title.textContent = `${link.constructor.kind} ${i + 1}`;
+      head.appendChild(title);
+      head.appendChild(this.smallButton('+ rod', 'Hang a rod link from this mass', () => {
+        o.appendLink(RodLink, i);
+        this.buildInspector();
+      }));
+      head.appendChild(this.smallButton('+ spring', 'Hang a spring link from this mass', () => {
+        o.appendLink(SpringLink, i);
+        this.buildInspector();
+      }));
+      if (o.parents[i] >= 0) {
+        head.appendChild(this.smallButton('✕', 'Remove this link and everything below it', () => {
+          o.removeLink(i);
+          this.buildInspector();
+        }));
+      }
+      sec.appendChild(head);
+
+      for (const def of link.constructor.paramDefs) sec.appendChild(this.sliderRow(link, def));
+      box.appendChild(sec);
     }
   }
 

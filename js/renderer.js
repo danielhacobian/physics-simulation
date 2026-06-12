@@ -53,18 +53,20 @@ export class Renderer {
   }
 
   drawTrail(o) {
-    if (!o.showTrail || o.trail.length < 2) return;
+    if (!o.showTrail) return;
     const { ctx } = this;
-    const n = o.trail.length;
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.strokeStyle = o.color;
-    for (let i = 1; i < n; i++) {
-      ctx.globalAlpha = (0.55 * i) / n;
-      ctx.beginPath();
-      ctx.moveTo(o.trail[i - 1].x * SCALE, o.trail[i - 1].y * SCALE);
-      ctx.lineTo(o.trail[i].x * SCALE, o.trail[i].y * SCALE);
-      ctx.stroke();
+    for (const pts of o.trails.values()) {
+      const n = pts.length;
+      for (let i = 1; i < n; i++) {
+        ctx.globalAlpha = (0.55 * i) / n;
+        ctx.beginPath();
+        ctx.moveTo(pts[i - 1].x * SCALE, pts[i - 1].y * SCALE);
+        ctx.lineTo(pts[i].x * SCALE, pts[i].y * SCALE);
+        ctx.stroke();
+      }
     }
     ctx.globalAlpha = 1;
   }
