@@ -19,10 +19,12 @@ runtime. After that it's quick.
 
 ## What you can do
 
-- **Add objects** with the `+ Pendulum` and `+ Spring` buttons.
+- **Add objects** with the `+ Pendulum`, `+ Spring`, and `+ Double Pendulum`
+  buttons.
 - **Click** an object to select it (it gets a white outline).
 - **Sliders** change the selected object: a pendulum's length, a spring's
-  stiffness, and either one's mass. The gravity slider affects everything.
+  stiffness, and the mass. (For a double pendulum, length and mass change both
+  of its segments.) The gravity slider affects everything.
 - **Pause** and **Reset** with the buttons.
 
 ## How it works
@@ -33,6 +35,10 @@ Each object steps forward in tiny time slices (1/60 of a second):
   swung (`-(gravity / length) * sin(angle)`).
 - **Spring** — gravity pulls the mass down while the spring pulls back the
   more it's stretched (Hooke's law: `gravity - (stiffness / mass) * stretch`).
+- **Double pendulum** — a second pendulum hanging off the first, using the
+  standard double-pendulum equations of motion. It's chaotic, so it never
+  quite repeats. To keep the motion stable we take several small steps per
+  frame instead of one big one.
 
 ## Files
 

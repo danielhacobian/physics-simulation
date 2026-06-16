@@ -4,7 +4,7 @@ This file runs in two places:
   * In the browser, through PyScript, where it draws on a <canvas> and
     listens to the buttons and sliders.
   * In plain Python (for the tests in test_physics.py), where it just uses
-    the Pendulum and Spring classes.
+    the Pendulum, Spring, and DoublePendulum classes.
 
 The `try` below is what lets that work: the browser-only imports simply
 aren't there when we run with regular Python, so we skip them.
@@ -21,9 +21,11 @@ except ImportError:
 
 
 # --- settings ---
-SCALE = 150       # pixels per metre
-ANCHOR_Y = 70     # how far down the "ceiling" is, in pixels
-DT = 1 / 60       # physics time step, in seconds
+SCALE = 150        # pixels per metre
+ANCHOR_Y = 70      # how far down the "ceiling" is, in pixels
+DT = 1 / 60        # how much time passes per drawn frame, in seconds
+SUBSTEPS = 16      # we split each frame into smaller steps for accuracy
+                   # (the double pendulum needs this to stay stable)
 
 
 def bob_radius(mass):
@@ -40,16 +42,25 @@ class Pendulum:
         self.speed = 0.0      # how fast the angle is changing
         self.color = "#4fc3f7"
 
-    def update(self, gravity):
+    def update(self, gravity, dt=DT):
         # A swinging pendulum speeds up the most when it is furthest out.
         acceleration = -(gravity / self.length) * math.sin(self.angle)
-        self.speed += acceleration * DT
-        self.angle += self.speed * DT
+        self.speed += acceleration * dt
+        self.angle += self.speed * dt
 
-    def bob_position(self):
+    def bobs(self):
         x = self.anchor_x + self.length * SCALE * math.sin(self.angle)
         y = ANCHOR_Y + self.length * SCALE * math.cos(self.angle)
-        return x, y
+        return [(x, y, self.mass)]
+
+    def draw_shape(self, ctx):
+        x, y, _ = self.bobs()[0]
+        ctx.strokeStyle = "#999"
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.moveTo(self.anchor_x, ANCHOR_Y)
+        ctx.lineTo(x, y)
+        ctx.stroke()
 
     def reset(self):
         self.angle = 0.6
@@ -66,21 +77,95 @@ class Spring:
         self.speed = 0.0
         self.color = "#ffb74d"
 
-    def update(self, gravity):
+    def update(self, gravity, dt=DT):
         # Hooke's law: the more it is stretched, the harder it pulls back.
         stretch = self.length - self.rest_length
         acceleration = gravity - (self.stiffness / self.mass) * stretch
-        self.speed += acceleration * DT
-        self.length += self.speed * DT
+        self.speed += acceleration * dt
+        self.length += self.speed * dt
 
-    def bob_position(self):
-        x = self.anchor_x
-        y = ANCHOR_Y + self.length * SCALE
-        return x, y
+    def bobs(self):
+        return [(self.anchor_x, ANCHOR_Y + self.length * SCALE, self.mass)]
+
+    def draw_shape(self, ctx):
+        _, y, _ = self.bobs()[0]
+        ctx.strokeStyle = "#999"
+        ctx.lineWidth = 2
+        draw_spring(ctx, self.anchor_x, ANCHOR_Y, self.anchor_x, y)
 
     def reset(self):
         self.length = 1.6
         self.speed = 0.0
+
+
+class DoublePendulum:
+    """One pendulum hanging off the end of another - famously chaotic."""
+
+    def __init__(self, anchor_x):
+        self.anchor_x = anchor_x
+        self.length1 = 1.2
+        self.length2 = 1.2
+        self.mass1 = 1.0
+        self.mass2 = 1.0
+        self.angle1 = 1.2     # radians from straight down
+        self.angle2 = 1.0
+        self.speed1 = 0.0
+        self.speed2 = 0.0
+        self.color = "#f06292"
+
+    def update(self, gravity, dt=DT):
+        # The standard equations of motion for a double pendulum. They look
+        # busy, but it's just two accelerations worked out from the angles
+        # and speeds. (den is never zero because 2*m1+m2 > m2.)
+        t1, t2 = self.angle1, self.angle2
+        w1, w2 = self.speed1, self.speed2
+        m1, m2 = self.mass1, self.mass2
+        L1, L2 = self.length1, self.length2
+        g = gravity
+        delta = t1 - t2
+        den = 2 * m1 + m2 - m2 * math.cos(2 * delta)
+
+        accel1 = (
+            -g * (2 * m1 + m2) * math.sin(t1)
+            - m2 * g * math.sin(t1 - 2 * t2)
+            - 2 * math.sin(delta) * m2 * (w2 * w2 * L2 + w1 * w1 * L1 * math.cos(delta))
+        ) / (L1 * den)
+
+        accel2 = (
+            2 * math.sin(delta) * (
+                w1 * w1 * L1 * (m1 + m2)
+                + g * (m1 + m2) * math.cos(t1)
+                + w2 * w2 * L2 * m2 * math.cos(delta)
+            )
+        ) / (L2 * den)
+
+        self.speed1 += accel1 * dt
+        self.speed2 += accel2 * dt
+        self.angle1 += self.speed1 * dt
+        self.angle2 += self.speed2 * dt
+
+    def bobs(self):
+        x1 = self.anchor_x + self.length1 * SCALE * math.sin(self.angle1)
+        y1 = ANCHOR_Y + self.length1 * SCALE * math.cos(self.angle1)
+        x2 = x1 + self.length2 * SCALE * math.sin(self.angle2)
+        y2 = y1 + self.length2 * SCALE * math.cos(self.angle2)
+        return [(x1, y1, self.mass1), (x2, y2, self.mass2)]
+
+    def draw_shape(self, ctx):
+        (x1, y1, _), (x2, y2, _) = self.bobs()
+        ctx.strokeStyle = "#999"
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.moveTo(self.anchor_x, ANCHOR_Y)
+        ctx.lineTo(x1, y1)
+        ctx.lineTo(x2, y2)
+        ctx.stroke()
+
+    def reset(self):
+        self.angle1 = 1.2
+        self.angle2 = 1.0
+        self.speed1 = 0.0
+        self.speed2 = 0.0
 
 
 # ----------------------------------------------------------------------
@@ -94,14 +179,20 @@ paused = False
 _proxies = []   # keep references so the browser doesn't discard our callbacks
 
 
+def next_x():
+    return 120 + len(objects) * 140
+
+
 def add_pendulum(event=None):
-    x = 120 + len(objects) * 140
-    objects.append(Pendulum(x))
+    objects.append(Pendulum(next_x()))
 
 
 def add_spring(event=None):
-    x = 120 + len(objects) * 140
-    objects.append(Spring(x))
+    objects.append(Spring(next_x()))
+
+
+def add_double(event=None):
+    objects.append(DoublePendulum(next_x()))
 
 
 def toggle_pause(event=None):
@@ -123,11 +214,18 @@ def on_canvas_click(event):
     mouse_y = event.clientY - rect.top
     selected = None
     for obj in objects:
-        bx, by = obj.bob_position()
-        if (mouse_x - bx) ** 2 + (mouse_y - by) ** 2 <= (bob_radius(obj.mass) + 6) ** 2:
-            selected = obj
+        for bx, by, m in obj.bobs():
+            if (mouse_x - bx) ** 2 + (mouse_y - by) ** 2 <= (bob_radius(m) + 6) ** 2:
+                selected = obj
+                break
+        if selected is obj:
             break
     update_panel()
+
+
+def set_slider(slider_id, value, fmt):
+    document.getElementById(slider_id).value = value
+    document.getElementById(slider_id + "-val").innerText = format(value, fmt)
 
 
 def update_panel():
@@ -138,14 +236,16 @@ def update_panel():
         return
     if isinstance(selected, Pendulum):
         label.innerText = "Selected: Pendulum"
-        document.getElementById("length").value = selected.length
-        document.getElementById("length-val").innerText = f"{selected.length:.2f}"
-    else:
+        set_slider("length", selected.length, ".2f")
+        set_slider("mass", selected.mass, ".1f")
+    elif isinstance(selected, Spring):
         label.innerText = "Selected: Spring"
-        document.getElementById("stiffness").value = selected.stiffness
-        document.getElementById("stiffness-val").innerText = f"{selected.stiffness:.0f}"
-    document.getElementById("mass").value = selected.mass
-    document.getElementById("mass-val").innerText = f"{selected.mass:.1f}"
+        set_slider("stiffness", selected.stiffness, ".0f")
+        set_slider("mass", selected.mass, ".1f")
+    else:  # DoublePendulum
+        label.innerText = "Selected: Double Pendulum"
+        set_slider("length", selected.length1, ".2f")
+        set_slider("mass", selected.mass1, ".1f")
 
 
 def on_gravity(event):
@@ -155,24 +255,33 @@ def on_gravity(event):
 
 
 def on_length(event):
-    document.getElementById("length-val").innerText = f"{float(event.target.value):.2f}"
+    value = float(event.target.value)
+    document.getElementById("length-val").innerText = f"{value:.2f}"
     if isinstance(selected, Pendulum):
-        selected.length = float(event.target.value)
+        selected.length = value
+    elif isinstance(selected, DoublePendulum):
+        selected.length1 = value
+        selected.length2 = value
 
 
 def on_mass(event):
-    document.getElementById("mass-val").innerText = f"{float(event.target.value):.1f}"
-    if selected is not None:
-        selected.mass = float(event.target.value)
+    value = float(event.target.value)
+    document.getElementById("mass-val").innerText = f"{value:.1f}"
+    if isinstance(selected, DoublePendulum):
+        selected.mass1 = value
+        selected.mass2 = value
+    elif selected is not None:
+        selected.mass = value
 
 
 def on_stiffness(event):
-    document.getElementById("stiffness-val").innerText = f"{float(event.target.value):.0f}"
+    value = float(event.target.value)
+    document.getElementById("stiffness-val").innerText = f"{value:.0f}"
     if isinstance(selected, Spring):
-        selected.stiffness = float(event.target.value)
+        selected.stiffness = value
 
 
-def draw_spring(x0, y0, x1, y1):
+def draw_spring(ctx, x0, y0, x1, y1):
     """A zig-zag line so springs look different from pendulum strings."""
     coils = 10
     width = 8
@@ -198,34 +307,25 @@ def draw():
     ctx.stroke()
 
     for obj in objects:
-        bx, by = obj.bob_position()
-
-        # the string (pendulum) or the coiled spring
-        ctx.strokeStyle = "#999"
-        ctx.lineWidth = 2
-        if isinstance(obj, Spring):
-            draw_spring(obj.anchor_x, ANCHOR_Y, bx, by)
-        else:
+        obj.draw_shape(ctx)
+        for bx, by, m in obj.bobs():
             ctx.beginPath()
-            ctx.moveTo(obj.anchor_x, ANCHOR_Y)
-            ctx.lineTo(bx, by)
-            ctx.stroke()
-
-        # the bob
-        ctx.beginPath()
-        ctx.arc(bx, by, bob_radius(obj.mass), 0, 2 * math.pi)
-        ctx.fillStyle = obj.color
-        ctx.fill()
-        if obj is selected:
-            ctx.strokeStyle = "white"
-            ctx.lineWidth = 3
-            ctx.stroke()
+            ctx.arc(bx, by, bob_radius(m), 0, 2 * math.pi)
+            ctx.fillStyle = obj.color
+            ctx.fill()
+            if obj is selected:
+                ctx.strokeStyle = "white"
+                ctx.lineWidth = 3
+                ctx.stroke()
 
 
 def tick(timestamp=None):
     if not paused:
-        for obj in objects:
-            obj.update(gravity)
+        # take several small steps each frame so the motion stays accurate
+        small_dt = DT / SUBSTEPS
+        for _ in range(SUBSTEPS):
+            for obj in objects:
+                obj.update(gravity, small_dt)
     draw()
     window.requestAnimationFrame(tick_proxy)
 
@@ -242,6 +342,7 @@ if IN_BROWSER:
 
     listen("add-pendulum", "click", add_pendulum)
     listen("add-spring", "click", add_spring)
+    listen("add-double", "click", add_double)
     listen("pause", "click", toggle_pause)
     listen("reset", "click", reset_all)
     listen("sim", "click", on_canvas_click)
@@ -253,6 +354,7 @@ if IN_BROWSER:
     # start with one of each so the page isn't empty
     add_pendulum()
     add_spring()
+    add_double()
 
     tick_proxy = create_proxy(tick)
     window.requestAnimationFrame(tick_proxy)
