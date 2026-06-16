@@ -1,73 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Springs &amp; Pendulums</title>
-<link rel="icon" href="data:,">
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Springs &amp; Pendulums</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- PyScript: lets us write the simulation in Python and run it in the browser.
+       If the page ever stops loading, bump this version number. -->
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css">
+  <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
 </head>
 <body>
-<header id="topbar">
   <h1>Springs &amp; Pendulums</h1>
-  <div id="transport">
-    <button id="btn-play" title="Pause / resume (Space)">&#10074;&#10074;</button>
-    <button id="btn-reset" title="Reset all objects to their starting state">&#8634; Reset</button>
-    <label class="speed">Speed
-      <input id="speed" type="range" min="0.1" max="2" step="0.05" value="1">
-      <span id="speed-val">1.00&times;</span>
-    </label>
-  </div>
-</header>
 
-<main>
-  <div id="canvas-wrap"><canvas id="sim"></canvas></div>
+  <div id="app">
+    <canvas id="sim" width="820" height="520"></canvas>
 
-  <aside id="sidebar">
-    <section class="panel">
-      <h2>Add object</h2>
-      <div class="add-buttons">
+    <div id="panel">
+      <div class="buttons">
         <button id="add-pendulum">+ Pendulum</button>
         <button id="add-spring">+ Spring</button>
-        <button id="add-double">+ Double pendulum</button>
       </div>
-    </section>
+      <div class="buttons">
+        <button id="pause">Pause</button>
+        <button id="reset">Reset</button>
+      </div>
 
-    <section class="panel">
-      <h2>Global</h2>
-      <label class="slider-row">
-        <span class="lbl"><span>Gravity</span><span class="val" id="gravity-val">9.81 m/s&sup2;</span></span>
-        <input id="gravity" type="range" min="0" max="25" step="0.01" value="9.81">
+      <p id="selected-label">Click an object to adjust it</p>
+
+      <label>Gravity: <span id="gravity-val">9.8</span> m/s&sup2;
+        <input type="range" id="gravity" min="0" max="20" step="0.1" value="9.8">
       </label>
-    </section>
 
-    <section class="panel">
-      <h2>Objects</h2>
-      <ul id="object-list"></ul>
-    </section>
+      <label>Length: <span id="length-val">1.50</span> m
+        <input type="range" id="length" min="0.5" max="3" step="0.05" value="1.5">
+      </label>
 
-    <section class="panel" id="inspector" hidden>
-      <h2 id="insp-name">&mdash;</h2>
-      <div id="insp-params"></div>
-      <label class="check-row"><input type="checkbox" id="insp-trail"> Motion trail</label>
-      <label class="check-row"><input type="checkbox" id="insp-vectors"> Velocity &amp; force vectors</label>
-      <div class="readout">
-        <span class="k">Kinetic</span><span id="ro-ke">&ndash;</span>
-        <span class="k">Potential</span><span id="ro-pe">&ndash;</span>
-        <span class="k">Total</span><span id="ro-tot">&ndash;</span>
-        <span class="k">Period</span><span id="ro-period">&ndash;</span>
-      </div>
-      <canvas id="graph"></canvas>
-      <button id="insp-delete" class="danger">Delete object</button>
-    </section>
+      <label>Mass: <span id="mass-val">1.0</span> kg
+        <input type="range" id="mass" min="0.5" max="5" step="0.1" value="1.0">
+      </label>
 
-    <section class="panel hint">
-      Drag a mass to position it, release to let go. Drag an anchor bracket to
-      move a whole system. Click an object to inspect it. Space pauses.
-    </section>
-  </aside>
-</main>
+      <label>Stiffness: <span id="stiffness-val">30</span> N/m
+        <input type="range" id="stiffness" min="5" max="100" step="1" value="30">
+      </label>
+    </div>
+  </div>
 
-<script type="module" src="js/main.js"></script>
+  <p class="hint">
+    Add pendulums and springs with the buttons. Click an object to select it,
+    then use the sliders to change it. Gravity affects everything.
+  </p>
+
+  <script type="py" src="./main.py"></script>
 </body>
 </html>
